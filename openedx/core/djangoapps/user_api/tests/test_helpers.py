@@ -109,7 +109,7 @@ class FormDescriptionTest(TestCase):
                     },
                     "errorMessages": {
                         "required": "You must provide a value!"
-                    }
+                    },
                 }
             ]
         }))

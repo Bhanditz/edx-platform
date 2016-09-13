@@ -1011,8 +1011,8 @@ class PersistentGradesTest(ProgressPageTest):
     def _add_problem_to_subsection(self):
         with self._logged_in_session(staff=True):
             self.course_outline.visit()
-            subsection = self.course_outline_page.section(self.SECTION_NAME).subsection(self.SUBSECTION_NAME)
-            subsection.add_children(create_multiple_choice_problem(self.PROBLEM_NAME + "2"))
+            subsection = self.course_outline.section(self.SECTION_NAME).subsection(self.SUBSECTION_NAME)
+            unit = subsection.units()[0].go_to()
 
     def _make_content_hidden(self):
         with self._logged_in_session(staff=True):
@@ -1020,8 +1020,9 @@ class PersistentGradesTest(ProgressPageTest):
 
     def _change_weight_for_problem(self):
         with self._logged_in_session(staff=True):
-            subsection = self.course_outline_page.section(self.SECTION_NAME).subsection(self.SUBSECTION_NAME)
-            unit = subsection.expand_subsection().unit(self.PROBLEM_NAME).go_to()
+            self.course_outline.visit()
+            subsection = self.course_outline.section(self.SECTION_NAME).subsection(self.SUBSECTION_NAME)
+            unit = subsection.units()[0].go_to()
             component_editor = ComponentEditorView(self.browser, unit.locator)
             component_editor.set_field_value_and_save('Problem Weight', 5)
 
@@ -1031,8 +1032,10 @@ class PersistentGradesTest(ProgressPageTest):
 
     def _edit_problem_content(self):
         with self._logged_in_session(staff=True):
-            subsection = self.course_outline_page.section(self.SECTION_NAME).subsection(self.SUBSECTION_NAME)
-            unit = subsection.expand_subsection().unit(self.PROBLEM_NAME).go_to()
+            self.course_outline.visit()
+            print self.course_outline.q(css='.outline')
+            subsection = self.course_outline.section(self.SECTION_NAME).subsection(self.SUBSECTION_NAME)
+            unit = subsection.units()[0]
             modified_content = "<p>modified content</p>"
             container = unit.xblocks[1].go_to_container()
             component = container.xblocks[1].children[0]
@@ -1058,7 +1061,7 @@ class PersistentGradesTest(ProgressPageTest):
             self.assertEqual(self._get_scores(), [(1, 1)])
             self.assertEqual(self._get_section_score(), (1, 1))
 
-        self.edit()
+        edit(self)
 
         with self._logged_in_session():
             self.assertEqual(self._get_scores(), [(1, 1)])

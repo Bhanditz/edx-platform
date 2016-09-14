@@ -922,6 +922,7 @@ class ProgressPageTest(UniqueCourseTest):
     EMAIL = "student101@example.com"
     SECTION_NAME = 'Test Section 1'
     SUBSECTION_NAME = 'Test Subsection 1'
+    UNIT_NAME = 'Test Unit 1'
     PROBLEM_NAME = 'Test Problem 1'
 
     def setUp(self):
@@ -945,6 +946,97 @@ class ProgressPageTest(UniqueCourseTest):
             self.course_info['number'],
             self.course_info['run'],
             self.course_info['display_name']
+        )
+
+        course_fix.add_children(
+            XBlockFixtureDesc('chapter', self.SECTION_NAME).add_children(
+                XBlockFixtureDesc('sequential', self.SUBSECTION_NAME).add_children(
+                    XBlockFixtureDesc('vertical', self.UNIT_NAME).add_children(
+                        create_multiple_choice_problem(self.PROBLEM_NAME)
+                    )
+                )
+            )
+        ).install()
+
+        # Auto-auth register for the course.
+        _auto_auth(self.browser, self.USERNAME, self.EMAIL, False, self.course_id)
+
+    def test_progress_page_shows_scored_problems(self):
+        with self._logged_in_session():
+            self.assertEqual(self._get_scores(), [(0, 1)])
+            self.assertEqual(self._get_section_score(), (0, 1))
+            self.courseware_page.visit()
+            self._answer_problem_correctly()
+            self.assertEqual(self._get_scores(), [(1, 1)])
+            self.assertEqual(self._get_section_score(), (1, 1))
+
+    def _answer_problem_correctly(self):
+        """
+        Submit a correct answer to the problem.
+        """
+        self.courseware_page.go_to_sequential_position(1)
+        self.problem_page.click_choice('choice_choice_2')
+        self.problem_page.click_check()
+
+    def _get_section_score(self):
+        """
+        Return a list of scores from the progress page.
+        """
+        self.progress_page.visit()
+        return self.progress_page.section_score(self.SECTION_NAME, self.SUBSECTION_NAME)
+
+    def _get_scores(self):
+        """
+        Return a list of scores from the progress page.
+        """
+        self.progress_page.visit()
+        return self.progress_page.scores(self.SECTION_NAME, self.SUBSECTION_NAME)
+
+    @contextmanager
+    def _logged_in_session(self, staff=False):
+        """
+        Ensure that the user is logged in and out appropriately at the beginning
+        and end of the current test.
+        """
+        self.logout_page.visit()
+        try:
+            _auto_auth(self.browser, self.USERNAME, self.EMAIL, False, self.course_id)
+            yield
+        finally:
+            self.logout_page.visit()
+
+
+@ddt.ddt
+class PersistentGradesTest(UniqueCourseTest):
+    """
+        Test that the progress page reports scores from completed assessments.
+        """
+    USERNAME = "STUDENT_TESTER"
+    EMAIL = "student101@example.com"
+    SECTION_NAME = 'Test Section 1'
+    SUBSECTION_NAME = 'Test Subsection 1'
+    PROBLEM_NAME = 'Test Problem 1'
+
+    def setUp(self):
+        super(PersistentGradesTest, self).setUp()
+
+        # Install a course with sections/problems, tabs, updates, and handouts
+        course_fix = CourseFixture(
+            self.course_info['org'],
+            self.course_info['number'],
+            self.course_info['run'],
+            self.course_info['display_name']
+        )
+        self.courseware_page = CoursewarePage(self.browser, self.course_id)
+        self.problem_page = ProblemPage(self.browser)  # pylint: disable=attribute-defined-outside-init
+        self.progress_page = ProgressPage(self.browser, self.course_id)
+        self.logout_page = LogoutPage(self.browser)
+
+        self.course_outline = CourseOutlinePage(
+            self.browser,
+            self.course_info['org'],
+            self.course_info['number'],
+            self.course_info['run']
         )
 
         course_fix.add_children(
@@ -1005,14 +1097,11 @@ class ProgressPageTest(UniqueCourseTest):
         finally:
             self.logout_page.visit()
 
-
-@ddt.ddt
-class PersistentGradesTest(ProgressPageTest):
     def _add_problem_to_subsection(self):
         with self._logged_in_session(staff=True):
             self.course_outline.visit()
             subsection = self.course_outline.section(self.SECTION_NAME).subsection(self.SUBSECTION_NAME)
-            unit = subsection.units()[0].go_to()
+            subsection.add_unit()
 
     def _make_content_hidden(self):
         with self._logged_in_session(staff=True):
@@ -1033,9 +1122,9 @@ class PersistentGradesTest(ProgressPageTest):
     def _edit_problem_content(self):
         with self._logged_in_session(staff=True):
             self.course_outline.visit()
-            print self.course_outline.q(css='.outline')
-            subsection = self.course_outline.section(self.SECTION_NAME).subsection(self.SUBSECTION_NAME)
-            unit = subsection.units()[0]
+            self.course_outline.section_at(0).subsection_at(0).expand_subsection()
+            unit = self.course_outline.section_at(0).subsection_at(0).unit_at(0).go_to()
+            self.assertTrue(unit.is_browser_on_page)
             modified_content = "<p>modified content</p>"
             container = unit.xblocks[1].go_to_container()
             component = container.xblocks[1].children[0]
